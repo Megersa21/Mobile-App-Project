@@ -6,11 +6,14 @@ async function registerUser(req, res) {
   try {
     let { fullName, email, phone, password } = req.body;
 
-    // Validate required fields.
+    // Validate required fields, including empty strings.
     if (
       typeof fullName !== 'string' ||
+      !fullName.trim() ||
       typeof phone !== 'string' ||
-      typeof password !== 'string'
+      !phone.trim() ||
+      typeof password !== 'string' ||
+      !password
     ) {
       return res.status(400).json({
         message: 'Full name, phone, and password are required.',
@@ -48,7 +51,6 @@ async function registerUser(req, res) {
       });
     }
 
-    // Check whether the phone number or email already exists.
     if (await userModel.findUserByPhone(phone)) {
       return res.status(409).json({
         message: 'An account with this phone number already exists.',
@@ -61,7 +63,6 @@ async function registerUser(req, res) {
       });
     }
 
-    // Never store the original password.
     const passwordHash = await bcrypt.hash(password, 12);
 
     const user = await userModel.createUser({
@@ -77,7 +78,6 @@ async function registerUser(req, res) {
       user,
     });
   } catch (error) {
-    // Do not expose database details or other internal errors to clients.
     console.error('Registration error:', error.message);
 
     return res.status(500).json({
@@ -92,8 +92,8 @@ async function loginUser(req, res) {
 
     if (
       typeof phone !== 'string' ||
-      typeof password !== 'string' ||
       !phone.trim() ||
+      typeof password !== 'string' ||
       !password
     ) {
       return res.status(400).json({
@@ -103,7 +103,6 @@ async function loginUser(req, res) {
 
     const user = await userModel.findUserByPhoneForLogin(phone.trim());
 
-    // Use the same message for an unknown phone and incorrect password.
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
       return res.status(401).json({
         message: 'Invalid phone number or password.',
