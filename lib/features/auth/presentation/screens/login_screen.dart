@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 
 import 'register_screen.dart';
 
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -11,29 +16,82 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
 
   bool _obscurePassword = true;
-  final bool _isLoading = false;
+  bool _isLoading = false;
+
+  static const _storage = FlutterSecureStorage();
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  void _signIn() {
+  Future<void> _signIn() async {
     FocusScope.of(context).unfocus();
 
     if (!_formKey.currentState!.validate()) return;
+    if (_isLoading) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Sign-in will be available after backend integration.'),
-      ),
-    );
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await http.post(
+        Uri.parse('http://192.168.137.5:5000/api/auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'phone': _phoneController.text.replaceAll(RegExp(r'[\s()+-]'), ''),
+          'password': _passwordController.text,
+        }),
+      );
+
+      final dynamic decoded = jsonDecode(response.body);
+      final Map<String, dynamic> data = decoded is Map<String, dynamic>
+          ? decoded
+          : <String, dynamic>{};
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200 &&
+          data['token'] is String &&
+          (data['token'] as String).isNotEmpty) {
+        await _storage.write(key: 'auth_token', value: data['token'] as String);
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Sign-in successful!')));
+
+        // We will add navigation to the member dashboard
+        // after that screen is implemented.
+      } else {
+        final message = data['message']?.toString();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message ?? 'Sign-in failed. Please try again.'),
+          ),
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cannot connect to the server. Please try again.'),
+        ),
+      );
+
+      debugPrint('Login error: $error');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   InputDecoration _inputDecoration({
@@ -100,30 +158,34 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(fontSize: 15, color: Colors.grey.shade600),
                 ),
                 const SizedBox(height: 36),
+
                 TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
                   textInputAction: TextInputAction.next,
-                  autofillHints: const [AutofillHints.email],
+                  autofillHints: const [AutofillHints.telephoneNumber],
                   decoration: _inputDecoration(
-                    label: 'Email address',
-                    icon: Icons.email_outlined,
+                    label: 'Phone number',
+                    icon: Icons.phone_outlined,
                   ),
                   validator: (value) {
-                    final email = value?.trim() ?? '';
+                    final phone = (value ?? '').replaceAll(
+                      RegExp(r'[\s()+-]'),
+                      '',
+                    );
 
-                    if (email.isEmpty) {
-                      return 'Please enter your email address';
+                    if (phone.isEmpty) {
+                      return 'Please enter your phone number';
                     }
 
-                    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
-                        .hasMatch(email)) {
-                      return 'Please enter a valid email address';
+                    if (!RegExp(r'^\d{9,15}$').hasMatch(phone)) {
+                      return 'Please enter a valid phone number';
                     }
 
                     return null;
                   },
                 ),
+
                 const SizedBox(height: 20),
                 TextFormField(
                   controller: _passwordController,
