@@ -7,6 +7,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../../../dashboard/presentation/screens/general_dashboard_screen.dart';
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -63,9 +65,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (!mounted) return;
 
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Sign-in successful!')));
-
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const GeneralDashboardScreen(),
+          ),
+        );
         // We will add navigation to the member dashboard
         // after that screen is implemented.
       } else {

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'login_screen.dart';
+
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -79,10 +81,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (!mounted) return;
 
       final message = data is Map ? data['message']?.toString() : null;
-
       if (response.statusCode == 201) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message ?? 'Registration successful!')),
+          SnackBar(
+            content: Text(
+              message ?? 'Registration successful! Please sign in.',
+            ),
+          ),
+        );
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
