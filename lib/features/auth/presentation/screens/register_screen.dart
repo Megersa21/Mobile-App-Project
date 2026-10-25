@@ -1,0 +1,313 @@
+import 'package:flutter/material.dart';
+
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
+
+  @override
+  State<RegisterScreen> createState() => _RegisterScreenState();
+}
+
+class _RegisterScreenState extends State<RegisterScreen> {
+  final _formKey = GlobalKey<FormState>();
+
+  final _fullNameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+
+  bool _acceptedTerms = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+
+  @override
+  void dispose() {
+    _fullNameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  String? _requiredValidator(String? value, String fieldName) {
+    if (value == null || value.trim().isEmpty) {
+      return '$fieldName is required';
+    }
+    return null;
+  }
+
+  void _submitForm() {
+    FocusScope.of(context).unfocus();
+
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    if (!_acceptedTerms) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please accept the terms and privacy notice.'),
+        ),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'The registration form is ready. Account creation '
+          'will be enabled when the backend is connected.',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Create Account')),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 68,
+                    height: 68,
+                    decoration: BoxDecoration(
+                      color: colors.primary.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Icon(
+                      Icons.person_add_alt_1_rounded,
+                      color: colors.primary,
+                      size: 34,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 22),
+                const Text(
+                  'Join Digital Ekub',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 27, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Create your account to start your savings journey.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    height: 1.5,
+                    color: Color(0xFF718075),
+                  ),
+                ),
+                const SizedBox(height: 30),
+
+                const _FieldLabel('Full name'),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _fullNameController,
+                  textCapitalization: TextCapitalization.words,
+                  autofillHints: const [AutofillHints.name],
+                  decoration: const InputDecoration(
+                    hintText: 'Enter your full name',
+                    prefixIcon: Icon(Icons.person_outline_rounded),
+                  ),
+                  validator: (value) {
+                    final error = _requiredValidator(value, 'Full name');
+                    if (error != null) return error;
+                    if (value!.trim().length < 2) {
+                      return 'Please enter your full name';
+                    }
+                    return null;
+                  },
+                ),
+
+                const SizedBox(height: 20),
+                const _FieldLabel('Email address'),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  autofillHints: const [AutofillHints.email],
+                  decoration: const InputDecoration(
+                    hintText: 'you@example.com',
+                    prefixIcon: Icon(Icons.email_outlined),
+                  ),
+                  validator: (value) {
+                    final error = _requiredValidator(value, 'Email');
+                    if (error != null) return error;
+
+                    final emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+                    if (!emailPattern.hasMatch(value!.trim())) {
+                      return 'Enter a valid email address';
+                    }
+                    return null;
+                  },
+                ),
+
+                const SizedBox(height: 20),
+                const _FieldLabel('Phone number'),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  autofillHints: const [AutofillHints.telephoneNumber],
+                  decoration: const InputDecoration(
+                    hintText: 'Enter your phone number',
+                    prefixIcon: Icon(Icons.phone_outlined),
+                  ),
+                  validator: (value) {
+                    final error = _requiredValidator(value, 'Phone number');
+                    if (error != null) return error;
+
+                    final digits = value!.replaceAll(RegExp(r'[\s()+-]'), '');
+
+                    if (!RegExp(r'^\d{9,15}$').hasMatch(digits)) {
+                      return 'Enter a valid phone number';
+                    }
+                    return null;
+                  },
+                ),
+
+                const SizedBox(height: 20),
+                const _FieldLabel('Password'),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _passwordController,
+                  obscureText: _obscurePassword,
+                  autofillHints: const [AutofillHints.newPassword],
+                  decoration: InputDecoration(
+                    hintText: 'At least 8 characters',
+                    prefixIcon: const Icon(Icons.lock_outline_rounded),
+                    suffixIcon: IconButton(
+                      tooltip: _obscurePassword
+                          ? 'Show password'
+                          : 'Hide password',
+                      onPressed: () {
+                        setState(() {
+                          _obscurePassword = !_obscurePassword;
+                        });
+                      },
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                    ),
+                  ),
+                  validator: (value) {
+                    final error = _requiredValidator(value, 'Password');
+                    if (error != null) return error;
+
+                    if (value!.length < 8) {
+                      return 'Password must be at least 8 characters';
+                    }
+                    return null;
+                  },
+                ),
+
+                const SizedBox(height: 20),
+                const _FieldLabel('Confirm password'),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _confirmPasswordController,
+                  obscureText: _obscureConfirmPassword,
+                  autofillHints: const [AutofillHints.newPassword],
+                  decoration: InputDecoration(
+                    hintText: 'Re-enter your password',
+                    prefixIcon: const Icon(Icons.lock_reset_rounded),
+                    suffixIcon: IconButton(
+                      tooltip: _obscureConfirmPassword
+                          ? 'Show password'
+                          : 'Hide password',
+                      onPressed: () {
+                        setState(() {
+                          _obscureConfirmPassword = !_obscureConfirmPassword;
+                        });
+                      },
+                      icon: Icon(
+                        _obscureConfirmPassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                    ),
+                  ),
+                  validator: (value) {
+                    final error = _requiredValidator(value, 'Confirm password');
+                    if (error != null) return error;
+
+                    if (value != _passwordController.text) {
+                      return 'Passwords do not match';
+                    }
+                    return null;
+                  },
+                ),
+
+                const SizedBox(height: 20),
+                CheckboxListTile(
+                  value: _acceptedTerms,
+                  onChanged: (value) {
+                    setState(() {
+                      _acceptedTerms = value ?? false;
+                    });
+                  },
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: const Text(
+                    'I agree to the Terms of Service and Privacy Notice.',
+                    style: TextStyle(fontSize: 13, height: 1.5),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: _submitForm,
+                  child: const Text('Create Account'),
+                ),
+
+                const SizedBox(height: 18),
+                const Text(
+                  'Identity verification and account approval '
+                  'will follow the applicable verification process.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.5,
+                    color: Color(0xFF718075),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w700,
+        color: Color(0xFF24382A),
+      ),
+    );
+  }
+}
