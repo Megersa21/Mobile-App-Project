@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'app/app_theme.dart';
 import 'features/auth/presentation/screens/register_screen.dart';
+import 'features/auth/presentation/screens/login_screen.dart';
 
 void main() {
   runApp(const DigitalEkubApp());
@@ -12,9 +13,6 @@ class DigitalEkubApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const forestGreen = Color(0xFF14532D);
-    const gold = Color(0xFFD4A72C);
-
     return MaterialApp(
       title: 'Sagni Digital Ekub',
       debugShowCheckedModeBanner: false,
@@ -172,12 +170,10 @@ class WelcomeScreen extends StatelessWidget {
                         const SizedBox(height: 14),
                         OutlinedButton(
                           onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Sign in will be available in the '
-                                  'authentication development step.',
-                                ),
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const LoginScreen(),
                               ),
                             );
                           },
