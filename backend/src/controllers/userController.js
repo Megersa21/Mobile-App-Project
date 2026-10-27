@@ -23,9 +23,12 @@ async function registerUser(req, res) {
 
     const normalizedName = fullName.trim();
     const normalizedEmail = email.trim().toLowerCase();
+
+    // Accept only local 10-digit numbers beginning with 09 or 07.
     const normalizedPhone = phone.trim();
 
     const emailPattern = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+    const phonePattern = /^(09|07)\d{8}$/;
 
     if (!emailPattern.test(normalizedEmail)) {
       return res.status(400).json({
@@ -33,11 +36,10 @@ async function registerUser(req, res) {
       });
     }
 
-    const phoneDigits = normalizedPhone.replace(/[\s()+-]/g, '');
-
-    if (!/^\d{9,15}$/.test(phoneDigits)) {
+    if (!phonePattern.test(normalizedPhone)) {
       return res.status(400).json({
-        message: 'Please provide a valid phone number.',
+        message:
+          'Phone number must contain exactly 10 digits and start with 09 or 07.',
       });
     }
 

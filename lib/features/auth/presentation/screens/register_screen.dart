@@ -1,10 +1,9 @@
-import 'package:flutter/material.dart';
-
-import 'login_screen.dart';
-
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+
+import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -27,6 +26,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
 
+  // Accept exactly 10 digits beginning with 09 or 07.
+  static final RegExp _phonePattern = RegExp(r'^(09|07)\d{8}$');
+
   @override
   void dispose() {
     _fullNameController.dispose();
@@ -41,6 +43,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (value == null || value.trim().isEmpty) {
       return '$fieldName is required';
     }
+    return null;
+  }
+
+  String? _validatePhone(String? value) {
+    final error = _requiredValidator(value, 'Phone number');
+    if (error != null) return error;
+
+    final phone = value!.trim();
+
+    if (!_phonePattern.hasMatch(phone)) {
+      return 'Enter a 10-digit number starting with 09 or 07';
+    }
+
     return null;
   }
 
@@ -71,16 +86,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
         body: jsonEncode({
           'fullName': _fullNameController.text.trim(),
           'email': _emailController.text.trim(),
-          'phone': _phoneController.text.replaceAll(RegExp(r'[\s()+-]'), ''),
+          'phone': _phoneController.text.trim(),
           'password': _passwordController.text,
         }),
       );
 
-      final data = jsonDecode(response.body);
+      final dynamic data = jsonDecode(response.body);
 
       if (!mounted) return;
 
       final message = data is Map ? data['message']?.toString() : null;
+
       if (response.statusCode == 201) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -178,9 +194,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   validator: (value) {
                     final error = _requiredValidator(value, 'Full name');
                     if (error != null) return error;
+
                     if (value!.trim().length < 2) {
                       return 'Please enter your full name';
                     }
+
                     return null;
                   },
                 ),
@@ -205,6 +223,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     if (!emailPattern.hasMatch(value!.trim())) {
                       return 'Enter a valid email address';
                     }
+
                     return null;
                   },
                 ),
@@ -217,20 +236,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   keyboardType: TextInputType.phone,
                   autofillHints: const [AutofillHints.telephoneNumber],
                   decoration: const InputDecoration(
-                    hintText: 'Enter your phone number',
+                    hintText: '0955362184 or 0755362184',
                     prefixIcon: Icon(Icons.phone_outlined),
                   ),
-                  validator: (value) {
-                    final error = _requiredValidator(value, 'Phone number');
-                    if (error != null) return error;
-
-                    final digits = value!.replaceAll(RegExp(r'[\s()+-]'), '');
-
-                    if (!RegExp(r'^\d{9,15}$').hasMatch(digits)) {
-                      return 'Enter a valid phone number';
-                    }
-                    return null;
-                  },
+                  validator: _validatePhone,
                 ),
 
                 const SizedBox(height: 20),
@@ -266,6 +275,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     if (value!.length < 8) {
                       return 'Password must be at least 8 characters';
                     }
+
                     return null;
                   },
                 ),
@@ -303,6 +313,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     if (value != _passwordController.text) {
                       return 'Passwords do not match';
                     }
+
                     return null;
                   },
                 ),
@@ -328,8 +339,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   onPressed: _isLoading ? null : _submitForm,
                   child: _isLoading
                       ? const SizedBox(
-                          height: 20,
                           width: 20,
+                          height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Text('Create Account'),
