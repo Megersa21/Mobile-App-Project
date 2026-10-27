@@ -9,6 +9,11 @@ const {
 const {
   respondToEkubInvitation,
 } = require('../controllers/ekubInvitationResponseController');
+const {
+  getMyEkubInvitations,
+} = require('../controllers/myEkubInvitationsController');
+
+const { requireAuth } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
@@ -19,5 +24,6 @@ router.get('/', getPublicGroups);
 router.get('/:id', getPublicGroupById);
 router.post('/:id/applications', applyToEkubGroup);
 router.patch('/invitations/:id', respondToEkubInvitation);
+router.get('/invitations', requireAuth, getMyEkubInvitations);
 
 module.exports = router;
