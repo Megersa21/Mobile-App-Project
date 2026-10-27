@@ -25,5 +25,7 @@ router.get('/:id', getPublicGroupById);
 router.post('/:id/applications', applyToEkubGroup);
 router.patch('/invitations/:id', respondToEkubInvitation);
 router.get('/invitations', requireAuth, getMyEkubInvitations);
+router.post('/:id/applications', requireAuth, applyToEkubGroup);
+router.patch('/invitations/:id', requireAuth, respondToEkubInvitation);
 
 module.exports = router;
