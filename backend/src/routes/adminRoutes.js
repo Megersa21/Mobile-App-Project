@@ -6,7 +6,9 @@ const {
   rejectUser,
 } = require('../controllers/adminController');
 const { createEkubGroup } = require('../controllers/ekubAdminGroupController');
-
+const {
+  getPendingEkubApplications,
+} = require('../controllers/ekubApplicationListController');
 const { requireAuth, requireAdmin } = require('../middleware/authMiddleware');
 const {
   reviewEkubApplication,
@@ -19,6 +21,7 @@ router.use(requireAuth, requireAdmin);
 router.get('/pending-approvals', listPendingApprovals);
 router.patch('/users/:id/approve', approveUser);
 router.patch('/users/:id/reject', rejectUser);
+router.get('/ekub-applications', getPendingEkubApplications);
 router.post('/ekub-groups', createEkubGroup);
 const {
   reviewEkubApplication,
