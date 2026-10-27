@@ -6,6 +6,9 @@ const {
 const {
   applyToEkubGroup,
 } = require('../controllers/ekubApplicationController');
+const {
+  respondToEkubInvitation,
+} = require('../controllers/ekubInvitationResponseController');
 
 const router = express.Router();
 
@@ -15,5 +18,6 @@ router.get('/', getPublicGroups);
 // View details of a public Ekub group.
 router.get('/:id', getPublicGroupById);
 router.post('/:id/applications', applyToEkubGroup);
+router.patch('/invitations/:id', respondToEkubInvitation);
 
 module.exports = router;
