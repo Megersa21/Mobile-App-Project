@@ -1,13 +1,12 @@
-import 'package:flutter/material.dart';
-
-import 'register_screen.dart';
-
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
+import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
 
 import '../../../dashboard/presentation/screens/general_dashboard_screen.dart';
+import 'fayda_verification_screen.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,7 +17,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _phoneController = TextEditingController();
+  final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
 
   bool _obscurePassword = true;
@@ -26,9 +25,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
   static const _storage = FlutterSecureStorage();
 
+  static const _apiUrl = 'http://192.168.137.5:5000/api/auth/login';
+
   @override
   void dispose() {
-    _phoneController.dispose();
+    _identifierController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -36,22 +37,26 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _signIn() async {
     FocusScope.of(context).unfocus();
 
-    if (!_formKey.currentState!.validate()) return;
-    if (_isLoading) return;
+    if (!_formKey.currentState!.validate() || _isLoading) {
+      return;
+    }
 
     setState(() => _isLoading = true);
 
     try {
+      final identifier = _identifierController.text.trim();
+
       final response = await http.post(
-        Uri.parse('http://192.168.137.5:5000/api/auth/login'),
+        Uri.parse(_apiUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'phone': _phoneController.text.replaceAll(RegExp(r'[\s()+-]'), ''),
+          'identifier': identifier,
           'password': _passwordController.text,
         }),
       );
 
       final dynamic decoded = jsonDecode(response.body);
+
       final Map<String, dynamic> data = decoded is Map<String, dynamic>
           ? decoded
           : <String, dynamic>{};
@@ -65,14 +70,54 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (!mounted) return;
 
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const GeneralDashboardScreen(),
-          ),
-        );
-        // We will add navigation to the member dashboard
-        // after that screen is implemented.
+        switch (data['nextStep']) {
+          case 'FAYDA_VERIFICATION':
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const FaydaVerificationScreen(),
+              ),
+            );
+            break;
+
+          case 'GENERAL_DASHBOARD':
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const GeneralDashboardScreen()),
+            );
+            break;
+
+          case 'MEMBER_DASHBOARD':
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Your account is approved, but the Member Dashboard '
+                  'is not ready yet.',
+                ),
+              ),
+            );
+            break;
+
+          case 'SUSPENDED_NOTICE':
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Your account is suspended. Please contact '
+                  'the administrator.',
+                ),
+              ),
+            );
+            break;
+
+          default:
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Unrecognized account status. Please contact support.',
+                ),
+              ),
+            );
+        }
       } else {
         final message = data['message']?.toString();
 
@@ -85,13 +130,13 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (error) {
       if (!mounted) return;
 
+      debugPrint('Login error: $error');
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Cannot connect to the server. Please try again.'),
         ),
       );
-
-      debugPrint('Login error: $error');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -120,6 +165,35 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  String? _validateIdentifier(String? value) {
+    final identifier = (value ?? '').trim();
+
+    if (identifier.isEmpty) {
+      return 'Please enter your email or phone number';
+    }
+
+    // If the input contains @, validate it as an email address.
+    if (identifier.contains('@')) {
+      final emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+      if (!emailPattern.hasMatch(identifier)) {
+        return 'Please enter a valid email address';
+      }
+
+      return null;
+    }
+
+    // Otherwise, validate it as a phone number.
+    // The original value is preserved when sent to the backend.
+    final phoneDigits = identifier.replaceAll(RegExp(r'[\s()+-]'), '');
+
+    if (!RegExp(r'^\d{9,15}$').hasMatch(phoneDigits)) {
+      return 'Enter a valid email or phone number';
+    }
+
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     const forestGreen = Color(0xFF14532D);
@@ -136,6 +210,7 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 24),
+
                 Container(
                   width: 84,
                   height: 84,
@@ -150,48 +225,43 @@ class _LoginScreenState extends State<LoginScreen> {
                     size: 44,
                   ),
                 ),
+
                 const SizedBox(height: 28),
+
                 const Text(
                   'Welcome Back!',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                 ),
+
                 const SizedBox(height: 8),
+
                 Text(
                   'Sign in to continue to Digital Ekub.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 15, color: Colors.grey.shade600),
                 ),
+
                 const SizedBox(height: 36),
 
                 TextFormField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
+                  controller: _identifierController,
+                  keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
-                  autofillHints: const [AutofillHints.telephoneNumber],
+                  autofillHints: const [
+                    AutofillHints.username,
+                    AutofillHints.email,
+                    AutofillHints.telephoneNumber,
+                  ],
                   decoration: _inputDecoration(
-                    label: 'Phone number',
-                    icon: Icons.phone_outlined,
+                    label: 'Email or phone number',
+                    icon: Icons.person_outline,
                   ),
-                  validator: (value) {
-                    final phone = (value ?? '').replaceAll(
-                      RegExp(r'[\s()+-]'),
-                      '',
-                    );
-
-                    if (phone.isEmpty) {
-                      return 'Please enter your phone number';
-                    }
-
-                    if (!RegExp(r'^\d{9,15}$').hasMatch(phone)) {
-                      return 'Please enter a valid phone number';
-                    }
-
-                    return null;
-                  },
+                  validator: _validateIdentifier,
                 ),
 
                 const SizedBox(height: 20),
+
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -225,6 +295,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     return null;
                   },
                 ),
+
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
@@ -240,7 +311,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: const Text('Forgot password?'),
                   ),
                 ),
+
                 const SizedBox(height: 16),
+
                 SizedBox(
                   height: 54,
                   child: FilledButton(
@@ -263,7 +336,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                   ),
                 ),
+
                 const SizedBox(height: 24),
+
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -273,7 +348,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         Navigator.pushReplacement(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const RegisterScreen(),
+                            builder: (_) => const RegisterScreen(),
                           ),
                         );
                       },
@@ -281,7 +356,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
                 ),
+
                 const SizedBox(height: 16),
+
                 Text(
                   'Your Digital Ekub journey starts here.',
                   textAlign: TextAlign.center,
