@@ -10,13 +10,12 @@ const {
   getPendingEkubApplications,
 } = require('../controllers/ekubApplicationListController');
 const { requireAuth, requireAdmin } = require('../middleware/authMiddleware');
-const {
-  reviewEkubApplication,
-} = require('../controllers/ekubApplicationReviewController');
-const router = express.Router();
+
 const {
   inviteMemberToEkubGroup,
 } = require('../controllers/ekubInvitationController');
+
+const router = express.Router();
 
 // Every route requires an authenticated, active administrator.
 router.use(requireAuth, requireAdmin);
@@ -26,7 +25,9 @@ router.patch('/users/:id/approve', approveUser);
 router.patch('/users/:id/reject', rejectUser);
 router.get('/ekub-applications', getPendingEkubApplications);
 router.post('/ekub-groups', createEkubGroup);
+router.patch('/ekub-applications/:id', reviewEkubApplication);
 router.post('/ekub-groups/:id/invitations', inviteMemberToEkubGroup);
+
 const {
   reviewEkubApplication,
 } = require('../controllers/ekubApplicationReviewController');
