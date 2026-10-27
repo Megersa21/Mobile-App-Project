@@ -72,10 +72,31 @@ async function findUserByIdentifierForLogin(identifier) {
 
   return result.rows[0] || null;
 }
+async function findUserById(id) {
+  const result = await pool.query(
+    `SELECT
+       id,
+       full_name,
+       email,
+       phone,
+       role,
+       account_status,
+       verification_status,
+       email_verified,
+       phone_verified,
+       created_at,
+       updated_at
+     FROM users
+     WHERE id = $1`,
+    [id],
+  );
 
+  return result.rows[0] || null;
+}
 module.exports = {
   findUserByEmail,
   findUserByPhone,
   findUserByIdentifierForLogin,
   createUser,
+  findUserById,
 };
