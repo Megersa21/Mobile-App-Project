@@ -1,14 +1,18 @@
 const express = require('express');
+
 const {
   getPublicGroups,
   getPublicGroupById,
 } = require('../controllers/ekubGroupController');
+
 const {
   applyToEkubGroup,
 } = require('../controllers/ekubApplicationController');
+
 const {
   respondToEkubInvitation,
 } = require('../controllers/ekubInvitationResponseController');
+
 const {
   getMyEkubInvitations,
 } = require('../controllers/myEkubInvitationsController');
@@ -17,15 +21,20 @@ const { requireAuth } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
-// Browse public Ekub groups.
+// Public: browse public Ekub groups.
 router.get('/', getPublicGroups);
 
-// View details of a public Ekub group.
-router.get('/:id', getPublicGroupById);
-router.post('/:id/applications', applyToEkubGroup);
-router.patch('/invitations/:id', respondToEkubInvitation);
+// Protected: view invitations belonging to the logged-in member.
 router.get('/invitations', requireAuth, getMyEkubInvitations);
-router.post('/:id/applications', requireAuth, applyToEkubGroup);
+
+// Protected: respond to an invitation belonging to the logged-in member.
 router.patch('/invitations/:id', requireAuth, respondToEkubInvitation);
+
+// Protected: apply to join an Ekub group.
+router.post('/:id/applications', requireAuth, applyToEkubGroup);
+
+// Public: view a public Ekub group's details.
+// Keep this route after the more specific /invitations routes.
+router.get('/:id', getPublicGroupById);
 
 module.exports = router;
