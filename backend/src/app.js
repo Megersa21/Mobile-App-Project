@@ -5,6 +5,7 @@ const authRoutes = require('./routes/authRoutes');
 const profileRoutes = require('./routes/profileRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const app = express();
+const ekubGroupRoutes = require('./routes/ekubGroupRoutes');
 
 app.use(helmet());
 app.use(cors());
@@ -21,5 +22,6 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', profileRoutes);
+app.use('/api/ekub-groups', ekubGroupRoutes);
 
 module.exports = app;
