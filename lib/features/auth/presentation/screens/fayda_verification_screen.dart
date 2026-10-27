@@ -6,13 +6,32 @@ class FaydaVerificationScreen extends StatelessWidget {
   static const Color forestGreen = Color(0xFF14532D);
   static const Color gold = Color(0xFFD4A72C);
 
+  void _startVerification(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Fayda Verification'),
+        content: const Text(
+          'The official Fayda verification service is not connected yet. '
+          'Your identity has not been verified. Please try again after '
+          'the authorized integration has been configured.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Fayda Verification'),
         centerTitle: true,
-        automaticallyImplyLeading: false,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -69,8 +88,8 @@ class FaydaVerificationScreen extends StatelessWidget {
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Verification has not been completed. '
-                        'No identity information has been verified yet.',
+                        'Official verification is not connected yet. '
+                        'No identity information has been verified.',
                         style: TextStyle(height: 1.5),
                       ),
                     ),
@@ -79,7 +98,7 @@ class FaydaVerificationScreen extends StatelessWidget {
               ),
               const SizedBox(height: 28),
               FilledButton.icon(
-                onPressed: null,
+                onPressed: () => _startVerification(context),
                 icon: const Icon(Icons.open_in_new),
                 label: const Text('Start Fayda Verification'),
                 style: FilledButton.styleFrom(
@@ -93,8 +112,8 @@ class FaydaVerificationScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                'This action will become available when the authorized '
-                'Fayda integration is configured.',
+                'The official verification service must be configured '
+                'before your identity can be verified.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
               ),
