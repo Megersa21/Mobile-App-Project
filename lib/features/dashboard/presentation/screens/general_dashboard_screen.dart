@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../profile/presentation/screens/member_profile_screen.dart';
+
 class GeneralDashboardScreen extends StatelessWidget {
   const GeneralDashboardScreen({super.key});
 
@@ -21,10 +23,11 @@ class GeneralDashboardScreen extends StatelessWidget {
           IconButton(
             tooltip: 'Account information',
             icon: const Icon(Icons.account_circle_outlined),
-            onPressed: () => _showMessage(
-              context,
-              'Your account information will be connected to your profile.',
-            ),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const MemberProfileScreen()),
+              );
+            },
           ),
         ],
       ),
@@ -242,11 +245,6 @@ class GeneralDashboardScreen extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  static void _showMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   static void _showDetails(
