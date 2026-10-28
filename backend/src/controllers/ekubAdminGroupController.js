@@ -144,6 +144,53 @@ async function createEkubGroup(req, res) {
   }
 }
 
+// PATCH /api/admin/ekub-groups/:id/publish
+// Publish a draft group so it can accept applications.
+async function publishEkubGroup(req, res) {
+  try {
+    const groupId = Number(req.params.id);
+
+    if (!Number.isSafeInteger(groupId) || groupId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid Ekub group ID.',
+      });
+    }
+
+    const result = await pool.query(
+      `UPDATE ekub_groups
+       SET status = 'open',
+           updated_at = NOW()
+       WHERE id = $1
+         AND status = 'draft'
+         AND end_date >= CURRENT_DATE
+       RETURNING id, name, visibility, status, start_date, end_date`,
+      [groupId],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message:
+          'Draft group not found, already published, or its end date has passed.',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Ekub group published successfully.',
+      group: result.rows[0],
+    });
+  } catch (error) {
+    console.error('Error publishing Ekub group:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Unable to publish the Ekub group right now.',
+    });
+  }
+}
 module.exports = {
   createEkubGroup,
+  publishEkubGroup,
 };

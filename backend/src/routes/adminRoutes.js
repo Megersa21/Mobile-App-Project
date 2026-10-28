@@ -6,8 +6,10 @@ const {
   rejectUser,
 } = require('../controllers/adminController');
 
-const { createEkubGroup } = require('../controllers/ekubAdminGroupController');
-
+const {
+  createEkubGroup,
+  publishEkubGroup,
+} = require('../controllers/ekubAdminGroupController');
 const {
   getPendingEkubApplications,
 } = require('../controllers/ekubApplicationListController');
@@ -34,7 +36,7 @@ router.patch('/users/:id/reject', rejectUser);
 router.get('/ekub-applications', getPendingEkubApplications);
 router.post('/ekub-groups', createEkubGroup);
 router.patch('/ekub-applications/:id', reviewEkubApplication);
-
+router.patch('/ekub-groups/:id/publish', publishEkubGroup);
 router.post('/ekub-groups/:id/invitations', inviteMemberToEkubGroup);
 
 module.exports = router;
