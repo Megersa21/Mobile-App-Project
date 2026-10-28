@@ -1,30 +1,66 @@
 const pool = require('../config/db');
 
-// GET /api/ekub-groups
+// GET /api/ekub-groups?page=1&limit=20
 // Browse public groups that are open for applications.
 async function getPublicGroups(req, res) {
   try {
-    const result = await pool.query(
-      `SELECT
-         id,
-         name,
-         description,
-         contribution_frequency,
-         start_date,
-         end_date,
-         contribution_amount,
-         currency,
-         capacity
-       FROM ekub_groups
-       WHERE visibility = 'public'
-         AND status = 'open'
-         AND end_date >= CURRENT_DATE
-       ORDER BY start_date ASC, id ASC`,
-    );
+    const page = Number.parseInt(req.query.page ?? '1', 10);
+    const limit = Number.parseInt(req.query.limit ?? '20', 10);
+
+    if (
+      !Number.isSafeInteger(page) ||
+      page < 1 ||
+      !Number.isSafeInteger(limit) ||
+      limit < 1 ||
+      limit > 100
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Page must be positive and limit must be between 1 and 100.',
+      });
+    }
+
+    const offset = (page - 1) * limit;
+
+    const [groupsResult, countResult] = await Promise.all([
+      pool.query(
+        `SELECT
+           id,
+           name,
+           description,
+           contribution_frequency,
+           start_date,
+           end_date,
+           contribution_amount,
+           currency,
+           capacity
+         FROM ekub_groups
+         WHERE visibility = 'public'
+           AND status = 'open'
+           AND end_date >= CURRENT_DATE
+         ORDER BY start_date ASC, id ASC
+         LIMIT $1 OFFSET $2`,
+        [limit, offset],
+      ),
+      pool.query(
+        `SELECT COUNT(*)::INTEGER AS total
+         FROM ekub_groups
+         WHERE visibility = 'public'
+           AND status = 'open'
+           AND end_date >= CURRENT_DATE`,
+      ),
+    ]);
+
+    const total = countResult.rows[0].total;
 
     return res.status(200).json({
       success: true,
-      groups: result.rows,
+      count: groupsResult.rows.length,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      groups: groupsResult.rows,
     });
   } catch (error) {
     console.error('Error fetching public Ekub groups:', error);
