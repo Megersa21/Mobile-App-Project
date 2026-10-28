@@ -163,16 +163,17 @@ async function publishEkubGroup(req, res) {
            updated_at = NOW()
        WHERE id = $1
          AND status = 'draft'
-         AND end_date >= CURRENT_DATE
+         AND start_date >= CURRENT_DATE
+         AND end_date >= start_date
        RETURNING id, name, visibility, status, start_date, end_date`,
       [groupId],
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
+      return res.status(409).json({
         success: false,
         message:
-          'Draft group not found, already published, or its end date has passed.',
+          'The group cannot be published. Check that it exists, is still a draft, and has valid dates.',
       });
     }
 
