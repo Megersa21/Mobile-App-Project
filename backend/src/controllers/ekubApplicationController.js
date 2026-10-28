@@ -38,10 +38,15 @@ async function applyToEkubGroup(req, res) {
 
     // Lock the group while checking its status and capacity.
     const groupResult = await client.query(
-      `SELECT id, visibility, status, end_date, capacity
- FROM ekub_groups
- WHERE id = $1
- FOR UPDATE`,
+      `SELECT
+     id,
+     visibility,
+     status,
+     capacity,
+     (end_date >= CURRENT_DATE) AS date_is_valid
+   FROM ekub_groups
+   WHERE id = $1
+   FOR UPDATE`,
       [groupId],
     );
 
@@ -56,10 +61,7 @@ async function applyToEkubGroup(req, res) {
 
     const group = groupResult.rows[0];
 
-    if (
-      group.status !== 'open' ||
-      new Date(group.end_date) < new Date(new Date().toISOString().slice(0, 10))
-    ) {
+    if (group.status !== 'open' || !group.date_is_valid) {
       await client.query('ROLLBACK');
 
       return res.status(400).json({
