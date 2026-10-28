@@ -2,52 +2,52 @@ const pool = require('../config/db');
 
 // PATCH /api/admin/ekub-applications/:id
 async function reviewEkubApplication(req, res) {
+  const applicationId = Number(req.params.id);
+  const { decision, reviewNote = null } = req.body;
+  const adminId = req.user.userId;
+
+  if (!Number.isSafeInteger(applicationId) || applicationId <= 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid application ID.',
+    });
+  }
+
+  if (!['approved', 'rejected'].includes(decision)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Decision must be approved or rejected.',
+    });
+  }
+
+  if (
+    reviewNote !== null &&
+    (typeof reviewNote !== 'string' || reviewNote.length > 2000)
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: 'Review note must be text with at most 2000 characters.',
+    });
+  }
+
   const client = await pool.connect();
+  let transactionStarted = false;
 
   try {
-    const applicationId = Number(req.params.id);
-    const { decision, reviewNote = null } = req.body;
-    const adminId = req.user.userId;
-
-    if (!Number.isSafeInteger(applicationId) || applicationId <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid application ID.',
-      });
-    }
-
-    if (!['approved', 'rejected'].includes(decision)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Decision must be approved or rejected.',
-      });
-    }
-
-    if (
-      reviewNote !== null &&
-      (typeof reviewNote !== 'string' || reviewNote.length > 2000)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: 'Review note must be text with at most 2000 characters.',
-      });
-    }
-
     await client.query('BEGIN');
+    transactionStarted = true;
 
     const applicationResult = await client.query(
-      `SELECT
-         a.id,
-         a.group_id,
-         a.user_id,
-         a.status
-       FROM ekub_membership_applications a
-       WHERE a.id = $1
+      `SELECT id, group_id, user_id, status
+       FROM ekub_membership_applications
+       WHERE id = $1
        FOR UPDATE`,
       [applicationId],
     );
+
     if (applicationResult.rows.length === 0) {
       await client.query('ROLLBACK');
+      transactionStarted = false;
 
       return res.status(404).json({
         success: false,
@@ -59,6 +59,7 @@ async function reviewEkubApplication(req, res) {
 
     if (application.status !== 'pending') {
       await client.query('ROLLBACK');
+      transactionStarted = false;
 
       return res.status(409).json({
         success: false,
@@ -67,24 +68,40 @@ async function reviewEkubApplication(req, res) {
     }
 
     if (decision === 'approved') {
-      if (
-        application.group_status !== 'open' ||
-        new Date(application.end_date) <
-          new Date(new Date().toISOString().slice(0, 10))
-      ) {
+      // Lock the group before checking its status and capacity.
+      const groupResult = await client.query(
+        `SELECT
+           id,
+           capacity,
+           status AS group_status,
+           (end_date >= CURRENT_DATE) AS date_is_valid
+         FROM ekub_groups
+         WHERE id = $1
+         FOR UPDATE`,
+        [application.group_id],
+      );
+
+      if (groupResult.rows.length === 0) {
         await client.query('ROLLBACK');
+        transactionStarted = false;
+
+        return res.status(404).json({
+          success: false,
+          message: 'Ekub group not found.',
+        });
+      }
+
+      const group = groupResult.rows[0];
+
+      if (group.group_status !== 'open' || !group.date_is_valid) {
+        await client.query('ROLLBACK');
+        transactionStarted = false;
 
         return res.status(409).json({
           success: false,
           message: 'This group is no longer accepting members.',
         });
       }
-
-      // Lock the group row to serialize approvals and protect capacity.
-      await client.query(
-        'SELECT id FROM ekub_groups WHERE id = $1 FOR UPDATE',
-        [application.group_id],
-      );
 
       const capacityResult = await client.query(
         `SELECT COUNT(*)::INTEGER AS active_count
@@ -94,8 +111,9 @@ async function reviewEkubApplication(req, res) {
         [application.group_id],
       );
 
-      if (capacityResult.rows[0].active_count >= application.capacity) {
+      if (capacityResult.rows[0].active_count >= group.capacity) {
         await client.query('ROLLBACK');
+        transactionStarted = false;
 
         return res.status(409).json({
           success: false,
@@ -114,6 +132,7 @@ async function reviewEkubApplication(req, res) {
 
       if (userResult.rows.length === 0) {
         await client.query('ROLLBACK');
+        transactionStarted = false;
 
         return res.status(409).json({
           success: false,
@@ -133,6 +152,7 @@ async function reviewEkubApplication(req, res) {
 
       if (membershipResult.rows.length > 0) {
         await client.query('ROLLBACK');
+        transactionStarted = false;
 
         return res.status(409).json({
           success: false,
@@ -168,6 +188,7 @@ async function reviewEkubApplication(req, res) {
 
     if (updatedResult.rows.length === 0) {
       await client.query('ROLLBACK');
+      transactionStarted = false;
 
       return res.status(409).json({
         success: false,
@@ -176,6 +197,7 @@ async function reviewEkubApplication(req, res) {
     }
 
     await client.query('COMMIT');
+    transactionStarted = false;
 
     return res.status(200).json({
       success: true,
@@ -186,7 +208,9 @@ async function reviewEkubApplication(req, res) {
       application: updatedResult.rows[0],
     });
   } catch (error) {
-    await client.query('ROLLBACK').catch(() => {});
+    if (transactionStarted) {
+      await client.query('ROLLBACK').catch(() => {});
+    }
 
     console.error('Error reviewing Ekub application:', error);
 
