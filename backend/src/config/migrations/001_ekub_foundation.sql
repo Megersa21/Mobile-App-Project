@@ -10,16 +10,26 @@ BEGIN;
 CREATE TABLE ekub_settings (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name VARCHAR(150) NOT NULL,
+
     currency CHAR(3) NOT NULL DEFAULT 'ETB'
         CHECK (currency = 'ETB'),
+
     contribution_frequency VARCHAR(20) NOT NULL DEFAULT 'weekly'
         CHECK (contribution_frequency = 'weekly'),
+
     contribution_amount NUMERIC(12, 2) NOT NULL
         CHECK (contribution_amount > 0),
+
+    min_group_capacity INTEGER NOT NULL DEFAULT 2
+        CHECK (min_group_capacity >= 1),
+
+    max_group_capacity INTEGER NOT NULL DEFAULT 20
+        CHECK (max_group_capacity >= min_group_capacity),
+
     status VARCHAR(20) NOT NULL DEFAULT 'setup'
         CHECK (status IN ('setup', 'active', 'paused', 'closed')),
-    created_by BIGINT
-        REFERENCES users(id) ON DELETE RESTRICT,
+
+    created_by BIGINT REFERENCES users(id) ON DELETE RESTRICT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -27,7 +37,6 @@ CREATE TABLE ekub_settings (
 -- Exactly one central Ekub configuration.
 CREATE UNIQUE INDEX uq_single_central_ekub
     ON ekub_settings ((TRUE));
-
 
 -- 2. Membership
 CREATE TABLE ekub_memberships (
@@ -53,14 +62,12 @@ CREATE TABLE ekub_memberships (
     UNIQUE (user_id)
 );
 
-
 -- 3. Rotation cycles
 CREATE TABLE rotation_cycles (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ekub_id BIGINT NOT NULL
         REFERENCES ekub_settings(id) ON DELETE RESTRICT,
-    cycle_number INTEGER NOT NULL
-        CHECK (cycle_number > 0),
+    cycle_number INTEGER NOT NULL CHECK (cycle_number > 0),
     status VARCHAR(20) NOT NULL DEFAULT 'draft'
         CHECK (
             status IN (
@@ -70,15 +77,13 @@ CREATE TABLE rotation_cycles (
         ),
     start_date DATE NOT NULL,
     end_date DATE,
-    created_by BIGINT
-        REFERENCES users(id) ON DELETE RESTRICT,
+    created_by BIGINT REFERENCES users(id) ON DELETE RESTRICT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (ekub_id, cycle_number),
     UNIQUE (id, ekub_id),
     CHECK (end_date IS NULL OR end_date >= start_date)
 );
-
 
 -- 4. Cycle members and payout rotation
 CREATE TABLE rotation_cycle_members (
@@ -87,8 +92,7 @@ CREATE TABLE rotation_cycle_members (
         REFERENCES rotation_cycles(id) ON DELETE RESTRICT,
     membership_id BIGINT NOT NULL
         REFERENCES ekub_memberships(id) ON DELETE RESTRICT,
-    turn_number INTEGER NOT NULL
-        CHECK (turn_number > 0),
+    turn_number INTEGER NOT NULL CHECK (turn_number > 0),
     status VARCHAR(20) NOT NULL DEFAULT 'scheduled'
         CHECK (
             status IN (

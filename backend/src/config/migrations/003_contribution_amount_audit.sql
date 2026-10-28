@@ -1,10 +1,9 @@
 
 -- Sagni Digital Ekub
 -- Migration 003: Contribution Amount Change Audit
---
--- STATUS: DRAFT ONLY. DO NOT EXECUTE WITHOUT APPROVAL.
--- Depends on Migration 001 and Migration 002 being reviewed
--- and applied in the correct order.
+-- STATUS: DRAFT. DO NOT EXECUTE WITHOUT EXPLICIT APPROVAL.
+-- Depends on migrations 001 and 002.
+-- Does not modify or recreate the existing users table.
 
 BEGIN;
 
@@ -34,14 +33,14 @@ CREATE TABLE contribution_amount_change_audits (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT fk_amount_audit_cycle
-    FOREIGN KEY (effective_cycle_id, ekub_id)
-    REFERENCES rotation_cycles (id, ekub_id)
-    ON DELETE RESTRICT,
+        FOREIGN KEY (effective_cycle_id, ekub_id)
+        REFERENCES rotation_cycles (id, ekub_id)
+        ON DELETE RESTRICT,
 
-CONSTRAINT fk_amount_audit_effective_round
-    FOREIGN KEY (effective_cycle_id, effective_round_number)
-    REFERENCES contribution_rounds (cycle_id, round_number)
-    ON DELETE RESTRICT,
+    CONSTRAINT fk_amount_audit_effective_round
+        FOREIGN KEY (effective_cycle_id, effective_round_number)
+        REFERENCES contribution_rounds (cycle_id, round_number)
+        ON DELETE RESTRICT,
 
     CONSTRAINT chk_amount_actually_changed
         CHECK (previous_amount <> new_amount)

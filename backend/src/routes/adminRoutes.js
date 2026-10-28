@@ -21,7 +21,9 @@ const {
 const {
   inviteMemberToEkubGroup,
 } = require('../controllers/ekubInvitationController');
-
+const {
+  updateGroupCapacitySettings,
+} = require('../controllers/ekubAdminSettingsController');
 const { requireAuth, requireAdmin } = require('../middleware/authMiddleware');
 
 const router = express.Router();
@@ -32,7 +34,7 @@ router.use(requireAuth, requireAdmin);
 router.get('/pending-approvals', listPendingApprovals);
 router.patch('/users/:id/approve', approveUser);
 router.patch('/users/:id/reject', rejectUser);
-
+router.patch('/ekub-settings/group-capacity', updateGroupCapacitySettings);
 router.get('/ekub-applications', getPendingEkubApplications);
 router.post('/ekub-groups', createEkubGroup);
 router.patch('/ekub-applications/:id', reviewEkubApplication);

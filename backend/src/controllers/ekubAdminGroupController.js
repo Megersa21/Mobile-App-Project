@@ -88,6 +88,42 @@ async function createEkubGroup(req, res) {
       });
     }
 
+    const settingsResult = await pool.query(
+      `SELECT min_group_capacity, max_group_capacity
+   FROM ekub_settings
+   LIMIT 1`,
+    );
+
+    if (settingsResult.rows.length === 0) {
+      return res.status(503).json({
+        success: false,
+        message: 'Group capacity settings are not configured yet.',
+      });
+    }
+
+    const { min_group_capacity, max_group_capacity } = settingsResult.rows[0];
+    const minCapacity = Number(min_group_capacity);
+    const maxCapacity = Number(max_group_capacity);
+
+    if (
+      !Number.isSafeInteger(minCapacity) ||
+      !Number.isSafeInteger(maxCapacity) ||
+      minCapacity < 1 ||
+      maxCapacity < minCapacity
+    ) {
+      return res.status(500).json({
+        success: false,
+        message: 'Group capacity settings are invalid.',
+      });
+    }
+
+    if (groupCapacity < minCapacity || groupCapacity > maxCapacity) {
+      return res.status(400).json({
+        success: false,
+        message: `Group capacity must be between ${minCapacity} and ${maxCapacity}.`,
+      });
+    }
+
     if (
       description !== null &&
       (typeof description !== 'string' || description.length > 5000)

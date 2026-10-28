@@ -1,51 +1,29 @@
 
 -- Sagni Digital Ekub
 -- Migration 002: Weekly Contributions, Payments and Penalties
---
--- STATUS: DRAFT ONLY. DO NOT EXECUTE WITHOUT EXPLICIT APPROVAL.
--- Requires Migration 001 to be reviewed and applied first.
--- Does not modify or recreate the existing users table.
+-- STATUS: DRAFT. DO NOT EXECUTE WITHOUT EXPLICIT APPROVAL.
+-- Depends on Migration 001.
+-- Does not modify or recreate users.
 --
 -- IMPORTANT:
--- Cross-table financial rules must also be enforced by backend
--- transactions. SQL CHECK constraints alone cannot validate sums
--- across related payment and allocation records.
+-- Cross-row financial invariants require transactional backend
+-- enforcement and further database-level safeguards before production.
 
 BEGIN;
 
--- =========================================================
--- 1. WEEKLY CONTRIBUTION ROUNDS
--- Each round stores the contribution amount that applies to it.
--- Later settings changes must not alter existing rounds.
--- =========================================================
-
+-- 1. Contribution rounds
 CREATE TABLE contribution_rounds (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-
     cycle_id BIGINT NOT NULL
         REFERENCES rotation_cycles(id) ON DELETE RESTRICT,
-
-    round_number INTEGER NOT NULL
-        CHECK (round_number > 0),
-
+    round_number INTEGER NOT NULL CHECK (round_number > 0),
     due_date DATE NOT NULL,
-
     contribution_amount NUMERIC(12, 2) NOT NULL
         CHECK (contribution_amount > 0),
-
     status VARCHAR(20) NOT NULL DEFAULT 'scheduled'
-        CHECK (
-            status IN (
-                'scheduled',
-                'open',
-                'closed',
-                'cancelled'
-            )
-        ),
-
+        CHECK (status IN ('scheduled', 'open', 'closed', 'cancelled')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
     UNIQUE (cycle_id, round_number),
     UNIQUE (id, cycle_id)
 );
@@ -56,37 +34,18 @@ CREATE INDEX idx_contribution_rounds_due_date
 CREATE INDEX idx_contribution_rounds_cycle_status
     ON contribution_rounds (cycle_id, status);
 
-
--- =========================================================
--- 2. CONTRIBUTION OBLIGATIONS
--- One member owes one contribution for each applicable round.
--- Contributions are all-or-nothing under the current policy.
--- =========================================================
-
+-- 2. Contribution obligations
 CREATE TABLE contribution_obligations (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-
     round_id BIGINT NOT NULL,
     cycle_id BIGINT NOT NULL,
     cycle_member_id BIGINT NOT NULL,
-
-    amount_due NUMERIC(12, 2) NOT NULL
-        CHECK (amount_due > 0),
-
+    amount_due NUMERIC(12, 2) NOT NULL CHECK (amount_due > 0),
     amount_paid NUMERIC(12, 2) NOT NULL DEFAULT 0
         CHECK (amount_paid >= 0 AND amount_paid <= amount_due),
-
     due_date DATE NOT NULL,
-
     status VARCHAR(20) NOT NULL DEFAULT 'unpaid'
-        CHECK (
-            status IN (
-                'unpaid',
-                'paid',
-                'waived'
-            )
-        ),
-
+        CHECK (status IN ('unpaid', 'paid', 'waived')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
@@ -105,72 +64,37 @@ CREATE TABLE contribution_obligations (
 
     CHECK (
         (status = 'unpaid' AND amount_paid = 0)
-        OR
-        (status = 'paid' AND amount_paid = amount_due)
-        OR
-        (status = 'waived' AND amount_paid = 0)
+        OR (status = 'paid' AND amount_paid = amount_due)
+        OR (status = 'waived' AND amount_paid = 0)
     )
 );
 
 CREATE INDEX idx_obligations_member_status_due
-    ON contribution_obligations
-        (cycle_member_id, status, due_date);
+    ON contribution_obligations (cycle_member_id, status, due_date);
 
 CREATE INDEX idx_obligations_round
     ON contribution_obligations (round_id);
 
-
--- =========================================================
--- 3. CONTRIBUTION PAYMENTS
--- A payment may cover several outstanding obligations.
--- Only confirmed payments may be allocated.
--- A reversed payment preserves its original confirmation time.
--- =========================================================
-
+-- 3. Contribution payments
 CREATE TABLE contribution_payments (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-
     cycle_member_id BIGINT NOT NULL
         REFERENCES rotation_cycle_members(id) ON DELETE RESTRICT,
-
-    amount NUMERIC(12, 2) NOT NULL
-        CHECK (amount > 0),
-
-    currency CHAR(3) NOT NULL DEFAULT 'ETB'
-        CHECK (currency = 'ETB'),
-
+    amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
+    currency CHAR(3) NOT NULL DEFAULT 'ETB' CHECK (currency = 'ETB'),
     provider_reference VARCHAR(255) UNIQUE,
-
     idempotency_key VARCHAR(255) NOT NULL UNIQUE,
-
     status VARCHAR(20) NOT NULL DEFAULT 'pending'
-        CHECK (
-            status IN (
-                'pending',
-                'confirmed',
-                'failed',
-                'reversed'
-            )
-        ),
-
+        CHECK (status IN ('pending', 'confirmed', 'failed', 'reversed')),
     confirmed_at TIMESTAMPTZ,
-
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
     UNIQUE (id, cycle_member_id),
 
     CONSTRAINT chk_payment_confirmation_timestamp
         CHECK (
-            (
-                status IN ('confirmed', 'reversed')
-                AND confirmed_at IS NOT NULL
-            )
-            OR
-            (
-                status IN ('pending', 'failed')
-                AND confirmed_at IS NULL
-            )
+            (status IN ('confirmed', 'reversed') AND confirmed_at IS NOT NULL)
+            OR (status IN ('pending', 'failed') AND confirmed_at IS NULL)
         )
 );
 
@@ -181,24 +105,14 @@ CREATE INDEX idx_contribution_payments_confirmed_at
     ON contribution_payments (confirmed_at)
     WHERE status IN ('confirmed', 'reversed');
 
-
--- =========================================================
--- 4. CONTRIBUTION PAYMENT ALLOCATIONS
--- Records how much of a confirmed payment settles each
--- contribution obligation.
--- Original allocation records must be preserved after reversal.
--- =========================================================
-
+-- 4. Contribution payment allocations
 CREATE TABLE contribution_payment_allocations (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-
     payment_id BIGINT NOT NULL,
     cycle_member_id BIGINT NOT NULL,
     obligation_id BIGINT NOT NULL,
-
     amount_allocated NUMERIC(12, 2) NOT NULL
         CHECK (amount_allocated > 0),
-
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT fk_contribution_allocation_payment
@@ -220,82 +134,47 @@ CREATE INDEX idx_contribution_allocations_obligation
 CREATE INDEX idx_contribution_allocations_payment
     ON contribution_payment_allocations (payment_id);
 
-
--- =========================================================
--- 5. LATE PAYMENT PENALTIES
--- One penalty assessment per contribution obligation.
--- Current policy: 10% of the overdue unpaid principal.
--- Penalty is assessed once when the next weekly round begins
--- and the previous obligation remains unpaid.
--- =========================================================
-
+-- 5. Late payment penalties
 CREATE TABLE late_payment_penalties (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-
     obligation_id BIGINT NOT NULL UNIQUE
         REFERENCES contribution_obligations(id) ON DELETE RESTRICT,
-
     penalty_rate NUMERIC(5, 2) NOT NULL DEFAULT 10.00
         CHECK (penalty_rate = 10.00),
-
     calculation_base NUMERIC(12, 2) NOT NULL
         CHECK (calculation_base > 0),
-
     penalty_amount NUMERIC(12, 2) NOT NULL
         CHECK (penalty_amount >= 0),
-
     paid_amount NUMERIC(12, 2) NOT NULL DEFAULT 0
         CHECK (paid_amount >= 0 AND paid_amount <= penalty_amount),
-
     status VARCHAR(20) NOT NULL DEFAULT 'assessed'
-        CHECK (
-            status IN (
-                'assessed',
-                'paid',
-                'waived'
-            )
-        ),
-
+        CHECK (status IN ('assessed', 'paid', 'waived')),
     policy_version VARCHAR(50) NOT NULL DEFAULT '10-percent-v1',
-
     notes TEXT,
-
     assessed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
     UNIQUE (id, obligation_id),
 
     CHECK (
         (status = 'assessed' AND paid_amount = 0)
-        OR
-        (status = 'paid' AND paid_amount = penalty_amount)
-        OR
-        (status = 'waived' AND paid_amount = 0)
+        OR (status = 'paid' AND paid_amount = penalty_amount)
+        OR (status = 'waived' AND paid_amount = 0)
     )
 );
 
 CREATE INDEX idx_late_penalties_status
     ON late_payment_penalties (status);
 
-
--- =========================================================
--- 6. PENALTY PAYMENT ALLOCATIONS
--- Records which confirmed payment settles each penalty.
--- =========================================================
-
+-- 6. Penalty payment allocations
 CREATE TABLE penalty_payment_allocations (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-
     payment_id BIGINT NOT NULL,
     cycle_member_id BIGINT NOT NULL,
-
     penalty_id BIGINT NOT NULL,
     obligation_id BIGINT NOT NULL,
-
     amount_allocated NUMERIC(12, 2) NOT NULL
         CHECK (amount_allocated > 0),
-
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT fk_penalty_allocation_payment
@@ -322,142 +201,80 @@ CREATE INDEX idx_penalty_allocations_penalty
 CREATE INDEX idx_penalty_allocations_payment
     ON penalty_payment_allocations (payment_id);
 
-
--- =========================================================
--- 7. PAYMENT REVERSALS
--- One full reversal record per payment.
--- The original payment and allocation rows are never deleted.
--- =========================================================
-
+-- 7. Payment reversals
 CREATE TABLE payment_reversals (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-
     payment_id BIGINT NOT NULL UNIQUE
         REFERENCES contribution_payments(id) ON DELETE RESTRICT,
-
     reversal_reference VARCHAR(255) NOT NULL UNIQUE,
-
-    reason TEXT NOT NULL
-        CHECK (LENGTH(TRIM(reason)) > 0),
-
+    reason TEXT NOT NULL CHECK (LENGTH(TRIM(reason)) > 0),
     reversed_by_user_id BIGINT NOT NULL
         REFERENCES users(id) ON DELETE RESTRICT,
-
     reversed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_payment_reversals_reversed_at
     ON payment_reversals (reversed_at);
 
-
--- =========================================================
--- 8. CONTRIBUTION ALLOCATION REVERSAL DETAILS
--- Links each reversed contribution allocation to its reversal.
--- These rows preserve the detailed reversal audit trail.
--- =========================================================
-
+-- 8. Reversed contribution allocation details
 CREATE TABLE payment_reversal_contribution_allocations (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-
     reversal_id BIGINT NOT NULL
         REFERENCES payment_reversals(id) ON DELETE RESTRICT,
-
     allocation_id BIGINT NOT NULL
-        REFERENCES contribution_payment_allocations(id)
-        ON DELETE RESTRICT,
-
+        REFERENCES contribution_payment_allocations(id) ON DELETE RESTRICT,
     amount_reversed NUMERIC(12, 2) NOT NULL
         CHECK (amount_reversed > 0),
-
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
     UNIQUE (reversal_id, allocation_id)
 );
 
 CREATE INDEX idx_reversal_contribution_allocation
     ON payment_reversal_contribution_allocations (allocation_id);
 
-
--- =========================================================
--- 9. PENALTY ALLOCATION REVERSAL DETAILS
--- Links each reversed penalty allocation to its reversal.
--- =========================================================
-
+-- 9. Reversed penalty allocation details
 CREATE TABLE payment_reversal_penalty_allocations (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-
     reversal_id BIGINT NOT NULL
         REFERENCES payment_reversals(id) ON DELETE RESTRICT,
-
     allocation_id BIGINT NOT NULL
-        REFERENCES penalty_payment_allocations(id)
-        ON DELETE RESTRICT,
-
+        REFERENCES penalty_payment_allocations(id) ON DELETE RESTRICT,
     amount_reversed NUMERIC(12, 2) NOT NULL
         CHECK (amount_reversed > 0),
-
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
     UNIQUE (reversal_id, allocation_id)
 );
 
 CREATE INDEX idx_reversal_penalty_allocation
     ON payment_reversal_penalty_allocations (allocation_id);
 
-
--- =========================================================
--- 10. PENALTY WAIVER AUDIT
--- Waiving a penalty requires an authorized admin and a reason.
--- The penalty record is retained after waiver.
--- =========================================================
-
+-- 10. Penalty waiver audit
 CREATE TABLE penalty_waiver_audits (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-
     penalty_id BIGINT NOT NULL UNIQUE
         REFERENCES late_payment_penalties(id) ON DELETE RESTRICT,
-
     waived_by_user_id BIGINT NOT NULL
         REFERENCES users(id) ON DELETE RESTRICT,
-
-    reason TEXT NOT NULL
-        CHECK (LENGTH(TRIM(reason)) > 0),
-
-    waived_amount NUMERIC(12, 2) NOT NULL
-        CHECK (waived_amount > 0),
-
+    reason TEXT NOT NULL CHECK (LENGTH(TRIM(reason)) > 0),
+    waived_amount NUMERIC(12, 2) NOT NULL CHECK (waived_amount > 0),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_penalty_waiver_admin
     ON penalty_waiver_audits (waived_by_user_id);
 
-
--- =========================================================
--- 11. FINANCIAL CORRECTION AUDIT
--- Records correction metadata without overwriting original
--- financial history. Corrections require authorization/reason.
--- =========================================================
-
+-- 11. Financial correction audit
 CREATE TABLE financial_correction_audits (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-
     payment_id BIGINT
         REFERENCES contribution_payments(id) ON DELETE RESTRICT,
-
     correction_type VARCHAR(50) NOT NULL,
-
-    reason TEXT NOT NULL
-        CHECK (LENGTH(TRIM(reason)) > 0),
-
+    reason TEXT NOT NULL CHECK (LENGTH(TRIM(reason)) > 0),
     before_data JSONB NOT NULL,
     after_data JSONB NOT NULL,
-
     corrected_by_user_id BIGINT NOT NULL
         REFERENCES users(id) ON DELETE RESTRICT,
-
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -466,6 +283,5 @@ CREATE INDEX idx_financial_corrections_payment
 
 CREATE INDEX idx_financial_corrections_admin
     ON financial_correction_audits (corrected_by_user_id);
-
 
 COMMIT;
