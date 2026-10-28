@@ -81,18 +81,23 @@ async function inviteMemberToEkubGroup(req, res) {
 
     const invitationResult = await pool.query(
       `INSERT INTO ekub_group_invitations (
-         group_id,
-         invited_user_id,
-         invited_by,
-         status,
-         expires_at
-       )
-       VALUES ($1, $2, $3, 'pending', $4)
-       ON CONFLICT (group_id, invited_user_id)
-         WHERE status = 'pending'
-       DO NOTHING
-       RETURNING id, group_id, invited_user_id,
-                 invited_by, status, expires_at, created_at`,
+     group_id,
+     invited_user_id,
+     invited_by,
+     status,
+     expires_at
+   )
+   VALUES ($1, $2, $3, 'pending', $4)
+   ON CONFLICT (group_id, invited_user_id)
+     WHERE status = 'pending'
+   DO UPDATE
+   SET expires_at = EXCLUDED.expires_at,
+       invited_by = EXCLUDED.invited_by,
+       created_at = NOW()
+   WHERE ekub_group_invitations.expires_at IS NOT NULL
+     AND ekub_group_invitations.expires_at <= NOW()
+   RETURNING id, group_id, invited_user_id,
+             invited_by, status, expires_at, created_at`,
       [groupId, invitedUserId, inviterId, expiresAt],
     );
 
@@ -100,6 +105,23 @@ async function inviteMemberToEkubGroup(req, res) {
       return res.status(409).json({
         success: false,
         message: 'This member already has a pending invitation.',
+      });
+    }
+
+    const existingMembership = await pool.query(
+      `SELECT id
+   FROM ekub_group_memberships
+   WHERE group_id = $1
+     AND user_id = $2
+     AND status = 'active'
+   LIMIT 1`,
+      [groupId, invitedUserId],
+    );
+
+    if (existingMembership.rows.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'This user is already an active member of the group.',
       });
     }
 
