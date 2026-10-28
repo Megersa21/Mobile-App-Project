@@ -38,10 +38,10 @@ async function applyToEkubGroup(req, res) {
 
     // Lock the group while checking its status and capacity.
     const groupResult = await client.query(
-      `SELECT id, visibility, status, end_date
-       FROM ekub_groups
-       WHERE id = $1
-       FOR UPDATE`,
+      `SELECT id, visibility, status, end_date, capacity
+ FROM ekub_groups
+ WHERE id = $1
+ FOR UPDATE`,
       [groupId],
     );
 
@@ -65,6 +65,24 @@ async function applyToEkubGroup(req, res) {
       return res.status(400).json({
         success: false,
         message: 'This Ekub group is not accepting applications.',
+      });
+    }
+
+    // Check whether the group has reached its capacity.
+    const capacityResult = await client.query(
+      `SELECT COUNT(*)::INTEGER AS active_count
+       FROM ekub_group_memberships
+       WHERE group_id = $1
+         AND status = 'active'`,
+      [groupId],
+    );
+
+    if (capacityResult.rows[0].active_count >= group.capacity) {
+      await client.query('ROLLBACK');
+
+      return res.status(409).json({
+        success: false,
+        message: 'This Ekub group has reached its capacity.',
       });
     }
 
