@@ -40,18 +40,12 @@ async function reviewEkubApplication(req, res) {
          a.id,
          a.group_id,
          a.user_id,
-         a.status,
-         g.capacity,
-         g.status AS group_status,
-         g.end_date
+         a.status
        FROM ekub_membership_applications a
-       JOIN ekub_groups g ON g.id = a.group_id
        WHERE a.id = $1
-       FOR UPDATE OF a
-       FOR SHARE OF g`,
+       FOR UPDATE`,
       [applicationId],
     );
-
     if (applicationResult.rows.length === 0) {
       await client.query('ROLLBACK');
 
