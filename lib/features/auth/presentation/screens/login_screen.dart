@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
+import '../../../../core/api_config.dart';
 import '../../../dashboard/presentation/screens/general_dashboard_screen.dart';
 import 'fayda_verification_screen.dart';
 import 'register_screen.dart';
@@ -25,8 +26,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   static const _storage = FlutterSecureStorage();
 
-  static const _apiUrl = 'http://192.168.137.5:5000/api/auth/login';
-
   @override
   void dispose() {
     _identifierController.dispose();
@@ -46,16 +45,23 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final identifier = _identifierController.text.trim();
 
-      final response = await http.post(
-        Uri.parse(_apiUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'identifier': identifier,
-          'password': _passwordController.text,
-        }),
-      );
+      final response = await http
+          .post(
+            ApiConfig.endpoint('auth/login'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'identifier': identifier,
+              'password': _passwordController.text,
+            }),
+          )
+          .timeout(ApiConfig.requestTimeout);
 
-      final dynamic decoded = jsonDecode(response.body);
+      dynamic decoded;
+      try {
+        decoded = jsonDecode(response.body);
+      } on FormatException {
+        decoded = <String, dynamic>{};
+      }
 
       final Map<String, dynamic> data = decoded is Map<String, dynamic>
           ? decoded
@@ -172,7 +178,6 @@ class _LoginScreenState extends State<LoginScreen> {
       return 'Please enter your email or phone number';
     }
 
-    // If the input contains @, validate it as an email address.
     if (identifier.contains('@')) {
       final emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
@@ -183,8 +188,6 @@ class _LoginScreenState extends State<LoginScreen> {
       return null;
     }
 
-    // Otherwise, validate it as a phone number.
-    // The original value is preserved when sent to the backend.
     final phoneDigits = identifier.replaceAll(RegExp(r'[\s()+-]'), '');
 
     if (!RegExp(r'^\d{9,15}$').hasMatch(phoneDigits)) {
@@ -210,7 +213,6 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 24),
-
                 Container(
                   width: 84,
                   height: 84,
@@ -225,25 +227,19 @@ class _LoginScreenState extends State<LoginScreen> {
                     size: 44,
                   ),
                 ),
-
                 const SizedBox(height: 28),
-
                 const Text(
                   'Welcome Back!',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                 ),
-
                 const SizedBox(height: 8),
-
                 Text(
                   'Sign in to continue to Digital Ekub.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 15, color: Colors.grey.shade600),
                 ),
-
                 const SizedBox(height: 36),
-
                 TextFormField(
                   controller: _identifierController,
                   keyboardType: TextInputType.emailAddress,
@@ -259,9 +255,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   validator: _validateIdentifier,
                 ),
-
                 const SizedBox(height: 20),
-
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -291,11 +285,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     if (value == null || value.isEmpty) {
                       return 'Please enter your password';
                     }
-
                     return null;
                   },
                 ),
-
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
@@ -311,9 +303,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: const Text('Forgot password?'),
                   ),
                 ),
-
                 const SizedBox(height: 16),
-
                 SizedBox(
                   height: 54,
                   child: FilledButton(
@@ -336,9 +326,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                   ),
                 ),
-
                 const SizedBox(height: 24),
-
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -356,9 +344,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 16),
-
                 Text(
                   'Your Digital Ekub journey starts here.',
                   textAlign: TextAlign.center,

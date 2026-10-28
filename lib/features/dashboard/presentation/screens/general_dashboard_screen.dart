@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
+import '../../../../core/api_config.dart';
+import '../../../groups/presentation/screens/public_groups_screen.dart';
 import '../../../profile/presentation/screens/member_profile_screen.dart';
 
 class GeneralDashboardScreen extends StatefulWidget {
@@ -17,7 +19,7 @@ class _GeneralDashboardScreenState extends State<GeneralDashboardScreen> {
   static const Color forestGreen = Color(0xFF14532D);
   static const Color gold = Color(0xFFD4A72C);
 
-  static const String _profileUrl = 'http://192.168.137.5:5000/api/users/me';
+  static const String _profileUrl = '${ApiConfig.baseUrl}/users/me';
 
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
 
@@ -406,18 +408,13 @@ class _GeneralDashboardScreenState extends State<GeneralDashboardScreen> {
                 title: 'Public Community Information',
                 description:
                     'Discover available communities and their public details.',
-                onTap: () => _showDetails(
-                  context,
-                  'Public Community Information',
-                  [
-                    'Community name and description',
-                    'Contribution schedule and amount',
-                    'Membership availability and joining requirements',
-                  ],
-                  'Community listings are placeholders for now. '
-                      'Private member information and financial records '
-                      'must not be exposed here.',
-                ),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const PublicGroupsScreen(),
+                    ),
+                  );
+                },
               ),
 
               _DashboardCard(
