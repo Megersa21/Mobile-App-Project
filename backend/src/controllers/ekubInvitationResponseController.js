@@ -83,9 +83,14 @@ async function respondToEkubInvitation(req, res) {
     }
 
     const groupResult = await client.query(
-      `SELECT id, visibility, status, end_date
-       FROM ekub_groups
-       WHERE id = $1`,
+      `SELECT
+     id,
+     visibility,
+     status,
+     (end_date >= CURRENT_DATE) AS date_is_valid
+   FROM ekub_groups
+   WHERE id = $1
+   FOR UPDATE`,
       [invitation.group_id],
     );
 
@@ -93,8 +98,7 @@ async function respondToEkubInvitation(req, res) {
       groupResult.rows.length === 0 ||
       groupResult.rows[0].visibility !== 'private' ||
       groupResult.rows[0].status !== 'open' ||
-      new Date(groupResult.rows[0].end_date) <
-        new Date(new Date().toISOString().slice(0, 10))
+      !groupResult.rows[0].date_is_valid
     ) {
       await client.query('ROLLBACK');
 
